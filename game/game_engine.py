@@ -6,28 +6,78 @@ from .pipe import Pipe
 
 WHITE = (255, 255, 255)
 GREEN = (0, 150, 0)
+DARK_GREEN = (0, 110, 0)
+DIFFICULTIES = {
+    "easy": {"speed": 3, "gap": 190},
+    "medium": {"speed": 4, "gap": 150},
+    "hard": {"speed": 6, "gap": 120},
+}
 
 class GameEngine:
     def __init__(self, width, height):
         self.width = width
         self.height = height
 
-        self.bird = Bird(width // 4, height // 2)
-        self.pipe_speed = 4
         self.pipe_interval = 90  # frames between pipe spawns
-        self._spawn_timer = 0
-        self.pipes = [Pipe(width + 100, height, speed=self.pipe_speed)]
-
-        self.score = 0
         self.font = pygame.font.SysFont("Arial", 30)
         self.game_over_font = pygame.font.SysFont("Arial", 48, bold=True)
         self.final_score_font = pygame.font.SysFont("Arial", 36, bold=True)
         self.instruction_font = pygame.font.SysFont("Arial", 22)
+        self.menu_font = pygame.font.SysFont("Arial", 26, bold=True)
+        self.menu_options = ["Easy", "Medium", "Hard", "Exit"]
+        self.menu_buttons = self._make_menu_buttons()
+
+        self.difficulty = "medium"
+        self.pipe_speed = DIFFICULTIES[self.difficulty]["speed"]
+        self.pipe_gap = DIFFICULTIES[self.difficulty]["gap"]
+        self.bird = Bird(width // 4, height // 2)
+        self._spawn_timer = 0
+        self.pipes = [Pipe(width + 100, height, gap=self.pipe_gap, speed=self.pipe_speed)]
+
+        self.score = 0
         self.game_over = False
+
+    def _make_menu_buttons(self):
+        button_width = min(300, self.width - 40)
+        button_height = 48
+        gap = 12
+        first_y = self.height // 2 - 35
+        return [
+            pygame.Rect((self.width - button_width) // 2,
+                        first_y + index * (button_height + gap),
+                        button_width, button_height)
+            for index in range(len(self.menu_options))
+        ]
+
+    def reset(self, difficulty):
+        settings = DIFFICULTIES[difficulty]
+        self.difficulty = difficulty
+        self.pipe_speed = settings["speed"]
+        self.pipe_gap = settings["gap"]
+        self.bird = Bird(self.width // 4, self.height // 2)
+        self.pipes = [Pipe(self.width + 100, self.height,
+                           gap=self.pipe_gap, speed=self.pipe_speed)]
+        self.score = 0
+        self.game_over = False
+        self._spawn_timer = 0
 
     def handle_event(self, event):
         if self.game_over:
-            return
+            if event.type == pygame.KEYDOWN:
+                choices = {
+                    pygame.K_1: "easy",
+                    pygame.K_2: "medium",
+                    pygame.K_3: "hard",
+                }
+                if event.key in choices:
+                    return choices[event.key]
+                if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                    return "exit"
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                for option, button in zip(self.menu_options, self.menu_buttons):
+                    if button.collidepoint(event.pos):
+                        return option.lower()
+            return None
 
         # Flap is edge-triggered (KEYDOWN / MOUSEBUTTONDOWN), not held.
         if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
@@ -53,7 +103,7 @@ class GameEngine:
         self._spawn_timer += 1
         if self._spawn_timer >= self.pipe_interval:
             self._spawn_timer = 0
-            self.pipes.append(Pipe(self.width, self.height, speed=self.pipe_speed))
+            self.pipes.append(Pipe(self.width, self.height, gap=self.pipe_gap, speed=self.pipe_speed))
 
         for pipe in self.pipes:
             previous_pipe_x = pipe.x
@@ -90,7 +140,12 @@ class GameEngine:
 
             title = self.game_over_font.render("Game Over", True, WHITE)
             final_score = self.final_score_font.render(f"Final Score: {self.score}", True, WHITE)
-            instruction = self.instruction_font.render("Press any key or click to exit", True, WHITE)
-            screen.blit(title, title.get_rect(center=(self.width // 2, self.height // 2 - 70)))
-            screen.blit(final_score, final_score.get_rect(center=(self.width // 2, self.height // 2)))
-            screen.blit(instruction, instruction.get_rect(center=(self.width // 2, self.height // 2 + 55)))
+            screen.blit(title, title.get_rect(center=(self.width // 2, self.height // 2 - 185)))
+            screen.blit(final_score, final_score.get_rect(center=(self.width // 2, self.height // 2 - 135)))
+            instruction = self.instruction_font.render("Choose a difficulty or exit", True, WHITE)
+            screen.blit(instruction, instruction.get_rect(center=(self.width // 2, self.height // 2 - 90)))
+
+            for option, button in zip(self.menu_options, self.menu_buttons):
+                pygame.draw.rect(screen, DARK_GREEN, button, border_radius=8)
+                label = self.menu_font.render(option, True, WHITE)
+                screen.blit(label, label.get_rect(center=button.center))

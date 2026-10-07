@@ -24,18 +24,18 @@ def main():
     running = True
     while running:
         SCREEN.fill(SKY_BLUE)
-        game_over_input = False
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                game_over_input = True
-            engine.handle_event(event)
+            else:
+                action = engine.handle_event(event)
+                if action == "exit":
+                    running = False
+                elif action in ("easy", "medium", "hard"):
+                    engine.reset(action)
 
         engine.handle_input()
         engine.update()
-        if engine.game_over and game_over_input:
-            running = False
         engine.render(SCREEN)
 
         pygame.display.flip()
