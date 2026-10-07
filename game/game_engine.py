@@ -1,4 +1,5 @@
 import pygame
+from pathlib import Path
 from .bird import Bird
 from .pipe import Pipe
 
@@ -14,9 +15,10 @@ DIFFICULTIES = {
 }
 
 class GameEngine:
-    def __init__(self, width, height):
+    def __init__(self, width, height, project_root=None):
         self.width = width
         self.height = height
+        self.sounds = self._load_sounds(project_root)
 
         self.pipe_interval = 90  # frames between pipe spawns
         self.font = pygame.font.SysFont("Arial", 30)
@@ -36,6 +38,32 @@ class GameEngine:
 
         self.score = 0
         self.game_over = False
+
+    def _load_sounds(self, project_root):
+        if not pygame.mixer.get_init():
+            return {}
+
+        sound_dir = Path(project_root or Path(__file__).parent.parent) / "game" / "assets" / "sounds"
+        sounds = {}
+        for name in ("flap", "score", "death"):
+            try:
+                sounds[name] = pygame.mixer.Sound(str(sound_dir / f"{name}.wav"))
+            except (pygame.error, OSError):
+                sounds[name] = None
+        return sounds
+
+    def _play_sound(self, name):
+        sound = self.sounds.get(name)
+        if sound is not None:
+            try:
+                sound.play()
+            except pygame.error:
+                pass
+
+    def _set_game_over(self):
+        if not self.game_over:
+            self.game_over = True
+            self._play_sound("death")
 
     def _make_menu_buttons(self):
         button_width = min(300, self.width - 40)
@@ -82,8 +110,10 @@ class GameEngine:
         # Flap is edge-triggered (KEYDOWN / MOUSEBUTTONDOWN), not held.
         if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
             self.bird.flap()
+            self._play_sound("flap")
         if event.type == pygame.MOUSEBUTTONDOWN:
             self.bird.flap()
+            self._play_sound("flap")
 
     def handle_input(self):
         # Reserved for continuously-held-key input; flapping is handled
@@ -97,7 +127,7 @@ class GameEngine:
         self.bird.update()
 
         if self.bird.y - self.bird.radius <= 0 or self.bird.y + self.bird.radius >= self.height:
-            self.game_over = True
+            self._set_game_over()
             return
 
         self._spawn_timer += 1
@@ -115,11 +145,12 @@ class GameEngine:
             if (pygame.Rect(swept_pipe_x, 0, swept_pipe_width, pipe.gap_y).colliderect(bird_rect)
                     or pygame.Rect(swept_pipe_x, pipe.gap_y + pipe.gap, swept_pipe_width,
                                    pipe.screen_height - pipe.gap_y - pipe.gap).colliderect(bird_rect)):
-                self.game_over = True
+                self._set_game_over()
 
             if not pipe.scored and pipe.x + pipe.width < self.bird.x:
                 pipe.scored = True
                 self.score += 1
+                self._play_sound("score")
 
         self.pipes = [p for p in self.pipes if not p.off_screen()]
 
